@@ -2,409 +2,518 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Camera, Upload & Voice OCR Interface</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Camera Modes</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f5f7;
       margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      flex-direction: column;
-      color: #333;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #000;
+      color: #fff;
     }
-    .icon-container {
-      display: flex;
-      gap: 60px;
-      margin-bottom: 30px;
-    }
-    .icon-button {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      width: 100px;
-      height: 100px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+
+    #open-camera {
+      font-size: 1.5rem;
+      margin: 20px;
       cursor: pointer;
-      transition: box-shadow 0.3s ease;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1e1e1e;
+      padding: 12px 20px;
+      border-radius: 10px;
+      width: fit-content;
+      transition: background 0.3s;
     }
-    .icon-button:hover {
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+
+    #open-camera:hover {
+      background-color: #333;
     }
-    svg {
-      width: 50px;
-      height: 50px;
-      fill: #0078D4;
-    }
-    #cameraModal {
+
+    #camera-interface {
+      display: none;
+      flex-direction: column;
       position: fixed;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0,0,0,0.6);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    #cameraModal.active {
-      display: flex;
-    }
-    .camera-container {
-      background: white;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 4px 30px rgba(0,0,0,0.25);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      max-width: 360px;
-      width: 90vw;
-    }
-    video {
-      border-radius: 12px;
-      width: 320px;
-      height: 240px;
-      background: black;
-      object-fit: cover;
-    }
-    button.capture-btn, button.convert-btn, button.save-btn {
-      margin-top: 15px;
-      padding: 10px 30px;
-      font-size: 18px;
-      font-weight: 600;
-      background-color: #0078D4;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-    button.capture-btn:hover, button.convert-btn:hover, button.save-btn:hover {
-      background-color: #005a9e;
-    }
-    #capturedImage, #uploadedImage {
-      margin-top: 20px;
-      max-width: 320px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      display: none;
-    }
-    #ocrStatus, #ocrStatusUpload, #voiceStatus {
-      margin-top: 15px;
-      font-style: italic;
-      color: #555;
-      min-height: 1.2em;
-      text-align: center;
-    }
-    #extractedText, #extractedTextUpload, #voiceOutput {
-      margin-top: 15px;
       width: 100%;
-      max-width: 320px;
-      min-height: 100px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      padding: 10px;
-      background: #fafafa;
-      overflow-wrap: break-word;
-      white-space: pre-wrap;
-      font-family: Consolas, monospace;
-      font-size: 14px;
-      color: #222;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-      user-select: text;
+      height: 100%;
+      background: #000;
+      z-index: 9999;
     }
-    .close-btn {
-      align-self: flex-end;
-      cursor: pointer;
-      font-size: 24px;
-      font-weight: bold;
-      color: #555;
-      margin-bottom: 10px;
-      user-select: none;
-    }
-    .close-btn:hover {
-      color: #0078D4;
-    }
-    #uploadContainer, #voiceContainer {
+
+    .top-bar, .modes, .controls {
       display: flex;
-      flex-direction: column;
+      justify-content: space-between;
       align-items: center;
-      margin-top: 20px;
-      max-width: 360px;
-      width: 90vw;
-      background: white;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 4px 30px rgba(0,0,0,0.15);
+      padding: 10px 20px;
+      font-size: 14px;
+      background-color: #111;
     }
-    #uploadInput {
-      margin-bottom: 10px;
+
+    .camera-preview {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: #000;
+    }
+
+    video {
+      width: 100vw;
+      height: auto;
+      object-fit: cover;
+      max-height: calc(100vh - 200px);
+    }
+
+    .modes {
+      justify-content: center;
+      gap: 20px;
+      padding: 15px;
+    }
+
+    .modes button {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 14px;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .modes button:hover {
+      background-color: #333;
+    }
+
+    .modes .active {
+      background-color: #1e90ff;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    #mode-display {
+      text-align: center;
+      padding: 10px;
+      background-color: #111;
+      font-size: 13px;
+      border-top: 1px solid #222;
+      border-bottom: 1px solid #222;
+    }
+
+    .controls {
+      justify-content: space-around;
+      background: #111;
+    }
+
+    .controls i {
+      color: #ccc;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .controls i:hover {
+      color: #1e90ff;
+    }
+
+    .shutter-button {
+      width: 70px;
+      height: 70px;
+      border: 4px solid #ccc;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: transparent;
+    }
+
+    .shutter-button-inner {
+      width: 50px;
+      height: 50px;
+      background-color: #fff;
+      border-radius: 50%;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    #ocr-output {
+      display: none;
+      position: absolute;
+      bottom: 150px;
+      width: 90%;
+      max-height: 100px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      overflow-y: auto;
+      font-size: 14px;
+      font-family: Consolas, monospace;
+    }
+
+    #ocr-status {
+      display: none;
+      position: absolute;
+      bottom: 120px;
+      width: 90%;
+      text-align: center;
+      color: #ccc;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .modes {
+        gap: 10px;
+      }
+      .modes button {
+        font-size: 12px;
+        padding: 8px 10px;
+      }
+      .controls {
+        font-size: 1.2rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="icon-container">
-    <div class="icon-button" id="cameraBtn" title="Open Camera">
-      <svg viewBox="0 0 24 24">
-        <path d="M20 5h-3.586l-1.707-1.707A.996.996 0 0014 3H10a.996.996 0 00-.707.293L7.586 5H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2zm-8 12a5 5 0 110-10 5 5 0 010 10z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    </div>
-    <div class="icon-button" id="voiceBtn" title="Voice Input">
-      <svg viewBox="0 0 24 24">
-        <path d="M12 14a2 2 0 002-2V6a2 2 0 10-4 0v6a2 2 0 002 2z"/>
-        <path d="M19 11v1a7 7 0 01-14 0v-1H3v1a9 9 0 0018 0v-1z"/>
-        <path d="M12 19a4 4 0 004-4h-2a2 2 0 01-4 0H8a4 4 0 004 4z"/>
-      </svg>
-    </div>
+
+  <div id="open-camera">
+    <i class="fas fa-camera"></i> Open Camera
   </div>
 
-  <div id="cameraModal">
-    <div class="camera-container">
-      <div class="close-btn" id="closeModal">×</div>
+  <input type="file" id="file-input" accept="image/*" />
+
+  <div id="camera-interface">
+    <div class="top-bar"></div>
+
+    <div class="camera-preview">
       <video id="video" autoplay playsinline></video>
-      <button class="capture-btn" id="captureBtn">Click</button>
-      <img id="capturedImage" alt="Captured Image" />
-      <div id="ocrStatus"></div>
-      <div id="extractedText" contenteditable="true" spellcheck="false"></div>
-      <button class="save-btn" id="saveOcrCamera" style="display:none;">Save as Document</button>
+      <canvas id="canvas"></canvas>
+      <div id="ocr-status"></div>
+      <div id="ocr-output" contenteditable="true" spellcheck="false"></div>
+    </div>
+
+    <div class="modes">
+      <button data-mode="scan" class="mode-btn">Scan Device</button>
+      <button data-mode="table" class="mode-btn">Tables</button>
+      <button data-mode="doc" class="mode-btn active">.doc</button>
+    </div>
+
+    
+
+    <div class="controls">
+      <i class="fas fa-images fa-xl" id="gallery-icon"></i>
+      <i class="fas fa-microphone fa-xl" id="voice-icon"></i>
+      <div class="shutter-button" id="capture-btn">
+        <div class="shutter-button-inner"></div>
+      </div>
+      <i class="fas fa-bolt fa-xl" id="flash-icon" style="text-decoration: line-through;"></i>
+      <i class="fas fa-save fa-xl" id="save-icon"></i>
     </div>
   </div>
 
-  <div id="uploadContainer">
-    <input type="file" accept="image/*" id="uploadInput" />
-    <img id="uploadedImage" alt="Uploaded Image" />
-    <button class="convert-btn" id="convertBtn" style="display:none;">Convert to Digital Text</button>
-    <div id="ocrStatusUpload"></div>
-    <div id="extractedTextUpload" contenteditable="true" spellcheck="false"></div>
-    <button class="save-btn" id="saveOcrUpload" style="display:none;">Save as Document</button>
-  </div>
-
-  <div id="voiceContainer">
-    <div id="voiceStatus"></div>
-    <div id="voiceOutput" contenteditable="true" spellcheck="false"></div>
-  </div>
-
-  <!-- Tesseract.js -->
+  <!-- Tesseract.js Library -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
-  <script>
-    // Elements
-    const cameraBtn = document.getElementById('cameraBtn');
-    const cameraModal = document.getElementById('cameraModal');
-    const closeModal = document.getElementById('closeModal');
-    const video = document.getElementById('video');
-    const captureBtn = document.getElementById('captureBtn');
-    const capturedImage = document.getElementById('capturedImage');
-    const ocrStatus = document.getElementById('ocrStatus');
-    const extractedText = document.getElementById('extractedText');
-    const saveOcrCamera = document.getElementById('saveOcrCamera');
-    const uploadInput = document.getElementById('uploadInput');
-    const uploadedImage = document.getElementById('uploadedImage');
-    const convertBtn = document.getElementById('convertBtn');
-    const ocrStatusUpload = document.getElementById('ocrStatusUpload');
-    const extractedTextUpload = document.getElementById('extractedTextUpload');
-    const saveOcrUpload = document.getElementById('saveOcrUpload');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const voiceStatus = document.getElementById('voiceStatus');
-    const voiceOutput = document.getElementById('voiceOutput');
+<script>
+  let currentMode = '.doc';
+  let currentStream = null;
+  let flashEnabled = false;
+  let track = null;
+  let capturedImages = [];
 
-    let stream = null;
+  const openBtn = document.getElementById('open-camera');
+  const cameraUI = document.getElementById('camera-interface');
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const captureBtn = document.getElementById('capture-btn');
+  const modeBtns = document.querySelectorAll('.mode-btn');
+  const modeDisplay = document.getElementById('mode-display');
+  const flashIcon = document.getElementById('flash-icon');
+  const galleryIcon = document.getElementById('gallery-icon');
+  const voiceIcon = document.getElementById('voice-icon');
+  const saveIcon = document.getElementById('save-icon');
+  const fileInput = document.getElementById('file-input');
+  const ocrStatus = document.getElementById('ocr-status');
+  const ocrOutput = document.getElementById('ocr-output');
 
-    // Document Creation Logic (Reusable)
-    function createDocument(data, filename = 'output.doc') {
-      let tableRows;
-      if (Array.isArray(data)) {
-        // For structured data (key-value pairs from voice)
-        tableRows = data.map(pair => `<tr><td style="padding:8px;">${pair[0]}</td><td style="padding:8px;">${pair[1]}</td></tr>`).join('');
-      } else {
-        // For plain text (e.g., OCR output)
-        tableRows = `<tr><td style="padding:8px;">Text</td><td style="padding:8px;">${data}</td></tr>`;
+  openBtn.onclick = async () => {
+    cameraUI.style.display = 'flex';
+    try {
+      const constraints = {
+        video: { facingMode: "environment" }
+      };
+      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = currentStream;
+      track = currentStream.getVideoTracks()[0];
+    } catch (error) {
+      alert('Camera access denied or unsupported.');
+      cameraUI.style.display = 'none';
+    }
+  };
+
+  flashIcon.onclick = () => {
+    flashEnabled = !flashEnabled;
+    flashIcon.style.color = flashEnabled ? '#ff0' : '#ccc';
+  };
+
+  async function setTorch(on) {
+    if (!track) return;
+    const capabilities = track.getCapabilities();
+    if (capabilities.torch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: on }] });
+      } catch (err) {
+        console.warn("Torch error:", err);
       }
-      const tableHTML = `
+    }
+  }
+
+  function createDocument(data, filename) {
+    let content;
+    if (Array.isArray(data)) {
+      const tableRows = data
+        .map(pair => `<tr><td style="padding:8px;">${pair[0]}</td><td style="padding:8px;">${pair[1]}</td></tr>`)
+        .join('');
+      content = `
         <table border="1" style="border-collapse: collapse; width: 100%;">
           <tr style="background:#ccc;"><th style="padding:8px;">Parameter</th><th style="padding:8px;">Value</th></tr>
           ${tableRows}
         </table>
       `;
-      const fullHTML = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-          <head><meta charset='utf-8'></head>
-          <body>${tableHTML}</body>
-        </html>
-      `;
-      const blob = new Blob(['\ufeff', fullHTML], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // Camera Functionality
-    cameraBtn.addEventListener('click', async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        cameraModal.classList.add('active');
-      } catch (err) {
-        ocrStatus.textContent = 'Error accessing camera: ' + err.message;
-      }
-    });
-
-    closeModal.addEventListener('click', () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-      }
-      cameraModal.classList.remove('active');
-      capturedImage.style.display = 'none';
-      ocrStatus.textContent = '';
-      extractedText.textContent = '';
-      saveOcrCamera.style.display = 'none';
-    });
-
-    captureBtn.addEventListener('click', () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      capturedImage.src = canvas.toDataURL('image/png');
-      capturedImage.style.display = 'block';
-      performOCR(capturedImage, ocrStatus, extractedText, saveOcrCamera);
-    });
-
-    // Upload Functionality
-    uploadInput.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          uploadedImage.src = reader.result;
-          uploadedImage.style.display = 'block';
-          convertBtn.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-
-    convertBtn.addEventListener('click', () => {
-      performOCR(uploadedImage, ocrStatusUpload, extractedTextUpload, saveOcrUpload);
-    });
-
-    // OCR Processing
-    async function performOCR(imageElement, statusElement, textElement, saveButton) {
-      statusElement.textContent = 'Processing...';
-      try {
-        const { data: { text } } = await Tesseract.recognize(imageElement.src, 'eng', {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              statusElement.textContent = `Processing... ${Math.round(m.progress * 100)}%`;
-            }
-          }
-        });
-        statusElement.textContent = 'Completed';
-        textElement.textContent = text;
-        saveButton.style.display = text ? 'block' : 'none';
-      } catch (err) {
-        statusElement.textContent = 'Error: ' + err.message;
-        textElement.textContent = '';
-        saveButton.style.display = 'none';
-      }
-    }
-
-    // Save OCR as Document
-    saveOcrCamera.addEventListener('click', () => {
-      createDocument(extractedText.textContent, 'ocr_camera.doc');
-      ocrStatus.textContent = 'Document downloaded';
-    });
-
-    saveOcrUpload.addEventListener('click', () => {
-      createDocument(extractedTextUpload.textContent, 'ocr_upload.doc');
-      ocrStatusUpload.textContent = 'Document downloaded';
-    });
-
-    // Voice Functionality
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      voiceBtn.style.display = 'none';
-      voiceStatus.textContent = 'Speech Recognition not supported. Use Chrome or Edge.';
     } else {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
+      content = `<p style="padding:8px;">${data.replace(/\n/g, '<br>')}</p>`;
+    }
 
-      voiceBtn.addEventListener('click', () => {
-        voiceStatus.textContent = 'Listening...';
-        voiceOutput.textContent = '';
-        try {
-          recognition.start();
-        } catch (err) {
-          voiceStatus.textContent = 'Error starting recognition: ' + err.message;
+    const fullHTML = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'></head>
+        <body>${content}</body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff', fullHTML], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function performOCR(imageDataUrl) {
+    ocrStatus.style.display = 'block';
+    ocrOutput.style.display = 'block';
+    ocrStatus.textContent = 'Processing...';
+    try {
+      const { data: { text } } = await Tesseract.recognize(imageDataUrl, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            ocrStatus.textContent = `Processing... ${Math.round(m.progress * 100)}%`;
+          }
         }
       });
+      ocrStatus.textContent = 'Completed';
+      ocrOutput.textContent = text;
+      saveIcon.style.display = text.trim() ? 'inline-block' : 'none';
+    } catch (err) {
+      ocrStatus.textContent = 'Error: ' + err.message;
+      ocrOutput.textContent = '';
+      saveIcon.style.display = 'none';
+    }
+  }
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        voiceStatus.textContent = 'Processing...';
-        voiceOutput.textContent = transcript;
+  captureBtn.onclick = async () => {
+    if (flashEnabled) await setTorch(true);
+    const context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageDataUrl = canvas.toDataURL('image/png');
+    capturedImages.push(imageDataUrl);
+    if (flashEnabled) setTimeout(() => setTorch(false), 300);
 
-        const text = transcript.toLowerCase();
-        const parameters = [];
+    if (currentMode === 'doc') {
+      await performOCR(imageDataUrl);
+    } else if (currentMode === 'table') {
+      await performOCR(imageDataUrl);
+      const text = ocrOutput.textContent;
+      const lines = text.split('\n').filter(line => line.trim());
+      const parameters = lines.map(line => {
+        const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
+        return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
+      }).filter(pair => pair);
+      if (parameters.length > 0) {
+        createDocument(parameters, `captured_table.doc`);
+        ocrStatus.textContent = 'Table document downloaded';
+      } else {
+        ocrStatus.textContent = 'No table data found';
+      }
+    } else {
+      const link = document.createElement('a');
+      link.href = imageDataUrl;
+      link.download = `captured_${currentMode}.png`;
+      link.click();
+    }
+  };
 
-        const connectors = ['is', 'equals', 'equal to', '=', 'becomes', 'stays at', 'live in', 'lives in', 'located in', 'remains'];
-        const connectorRegex = connectors.map(c => c.replace(/ /g, '\\s+')).join('|');
-        const pattern = new RegExp(`\\b([\\w\\s]+?)\\s+(?:${connectorRegex})\\s+([\\w\\d:\\s.%°-]+?)\\s*(?=(?:and|my|the|a|an|\\.|$))`, 'gi');
+  modeBtns.forEach(btn => {
+    btn.onclick = () => {
+      modeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      modeDisplay.textContent = `Current Mode: ${btn.textContent}`;
+      ocrStatus.style.display = 'none';
+      ocrOutput.style.display = 'none';
+      saveIcon.style.display = 'none';
+    };
+  });
 
-        for (const match of text.matchAll(pattern)) {
-          let rawKey = cleanKey(match[1]);
-          let rawValue = cleanValue(match[2]);
-          if (rawKey && rawValue) {
-            parameters.push([capitalize(rawKey), rawValue]);
+  galleryIcon.onclick = () => {
+    fileInput.click();
+  };
+
+  fileInput.onchange = async () => {
+    const files = Array.from(fileInput.files);
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const imageUrl = e.target.result;
+        capturedImages.push(imageUrl);
+        if (currentMode === 'doc' || currentMode === 'table') {
+          await performOCR(imageUrl);
+          if (currentMode === 'table') {
+            const text = ocrOutput.textContent;
+            const lines = text.split('\n').filter(line => line.trim());
+            const parameters = lines.map(line => {
+              const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
+              return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
+            }).filter(pair => pair);
+            if (parameters.length > 0) {
+              createDocument(parameters, `uploaded_table.doc`);
+              ocrStatus.textContent = 'Table document downloaded';
+            } else {
+              ocrStatus.textContent = 'No table data found';
+            }
           }
         }
-
-        function cleanKey(str) {
-          return str.replace(/\b(?:and|my|the|a|an)\b/gi, '').replace(/^\s*and\s+/i, '').replace(/\s+/g, ' ').trim();
-        }
-
-        function cleanValue(str) {
-          return str.replace(/^(?:and|my|the|a|an)\s+/gi, '').replace(/\s+/g, ' ').trim();
-        }
-
-        function capitalize(str) {
-          return str.replace(/\b\w/g, c => c.toUpperCase());
-        }
-
-        if (parameters.length > 0) {
-          createDocument(parameters, 'voice_data.doc');
-          voiceStatus.textContent = 'Document downloaded';
-        } else {
-          voiceStatus.textContent = 'No structured data found';
-          voiceOutput.textContent = transcript + '\n\nTry saying: "temperature is 20" or "I live in Bijapur"';
-        }
       };
-
-      recognition.onerror = (event) => {
-        voiceStatus.textContent = 'Error: ' + event.error;
-        voiceOutput.textContent = '';
-      };
-
-      recognition.onend = () => {
-        if (voiceStatus.textContent === 'Listening...') {
-          voiceStatus.textContent = 'Stopped';
-        }
-      };
+      reader.readAsDataURL(file);
     }
-  </script>
+    fileInput.value = "";
+  };
+
+  saveIcon.onclick = () => {
+    const text = ocrOutput.textContent;
+    if (text.trim()) {
+      if (currentMode === 'table') {
+        const lines = text.split('\n').filter(line => line.trim());
+        const parameters = lines.map(line => {
+          const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
+          return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
+        }).filter(pair => pair);
+        createDocument(parameters, `saved_${currentMode}.doc`);
+      } else {
+        createDocument(text, `saved_${currentMode}.doc`);
+      }
+      ocrStatus.textContent = 'Document downloaded';
+    } else {
+      ocrStatus.textContent = 'No text to save';
+    }
+  };
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    voiceIcon.style.display = 'none';
+    console.warn('Speech Recognition not supported.');
+  } else {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    voiceIcon.onclick = () => {
+      ocrStatus.style.display = 'block';
+      ocrOutput.style.display = 'block';
+      ocrStatus.textContent = 'Listening...';
+      ocrOutput.textContent = '';
+      try {
+        recognition.start();
+      } catch (err) {
+        ocrStatus.textContent = 'Error starting recognition: ' + err.message;
+      }
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      ocrStatus.textContent = 'Processing...';
+      ocrOutput.textContent = transcript;
+
+      const text = transcript.toLowerCase();
+      const connectors = [
+        'is', 'equals', 'equal to', '=', 'becomes', 'stays at',
+        'live in', 'lives in', 'located in', 'remains'
+      ];
+      const connectorPattern = connectors.map(c => c.replace(/ /g, '\\s+')).join('|');
+      const pattern = new RegExp(
+        `\\b([\\w\\s]+?)\\s+(?:${connectorPattern})\\s+([\\w\\d:\\s.%°-]+?)\\s*(?=(?:and|my|the|a|an|\\.|$))`,
+        'gi'
+      );
+
+      const parameters = [];
+      for (const match of text.matchAll(pattern)) {
+        let rawKey = cleanKey(match[1]);
+        let rawValue = cleanValue(match[2]);
+        if (rawKey && rawValue) {
+          parameters.push([capitalize(rawKey), rawValue]);
+        }
+      }
+
+      function cleanKey(str) {
+        return str.replace(/\b(?:and|my|the|a|an)\b/gi, '').replace(/^\s*and\s+/i, '').replace(/\s+/g, ' ').trim();
+      }
+
+      function cleanValue(str) {
+        return str.replace(/^(?:and|my|the|a|an)\s+/gi, '').replace(/\s+/g, ' ').trim();
+      }
+
+      function capitalize(str) {
+        return str.replace(/\b\w/g, c => c.toUpperCase());
+      }
+
+      if (parameters.length > 0) {
+        createDocument(parameters, 'voice_data.doc');
+        ocrStatus.textContent = 'Document downloaded';
+      } else {
+        ocrStatus.textContent = 'No structured data found';
+        ocrOutput.textContent += '\n\nTry saying: "temperature is 20" or "I live in Bijapur"';
+      }
+    };
+
+    recognition.onerror = (event) => {
+      ocrStatus.textContent = 'Error: ' + event.error;
+      ocrOutput.textContent = '';
+    };
+
+    recognition.onend = () => {
+      if (ocrStatus.textContent === 'Listening...') {
+        ocrStatus.textContent = 'Stopped';
+      }
+    };
+  }
+</script>
 </body>
-</html>
+</html> 
