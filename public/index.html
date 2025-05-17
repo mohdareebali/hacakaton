@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Camera, Upload & Voice OCR Interface</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f7;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+      color: #333;
+    }
+    .icon-container {
+      display: flex;
+      gap: 60px;
+      margin-bottom: 30px;
+    }
+    .icon-button {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      width: 100px;
+      height: 100px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: box-shadow 0.3s ease;
+    }
+    .icon-button:hover {
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    svg {
+      width: 50px;
+      height: 50px;
+      fill: #0078D4;
+    }
+    #cameraModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #cameraModal.active {
+      display: flex;
+    }
+    .camera-container {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 360px;
+      width: 90vw;
+    }
+    video {
+      border-radius: 12px;
+      width: 320px;
+      height: 240px;
+      background: black;
+      object-fit: cover;
+    }
+    button.capture-btn, button.convert-btn, button.save-btn {
+      margin-top: 15px;
+      padding: 10px 30px;
+      font-size: 18px;
+      font-weight: 600;
+      background-color: #0078D4;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button.capture-btn:hover, button.convert-btn:hover, button.save-btn:hover {
+      background-color: #005a9e;
+    }
+    #capturedImage, #uploadedImage {
+      margin-top: 20px;
+      max-width: 320px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      display: none;
+    }
+    #ocrStatus, #ocrStatusUpload, #voiceStatus {
+      margin-top: 15px;
+      font-style: italic;
+      color: #555;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    #extractedText, #extractedTextUpload, #voiceOutput {
+      margin-top: 15px;
+      width: 100%;
+      max-width: 320px;
+      min-height: 100px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fafafa;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+      font-size: 14px;
+      color: #222;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      user-select: text;
+    }
+    .close-btn {
+      align-self: flex-end;
+      cursor: pointer;
+      font-size: 24px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 10px;
+      user-select: none;
+    }
+    .close-btn:hover {
+      color: #0078D4;
+    }
+    #uploadContainer, #voiceContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 20px;
+      max-width: 360px;
+      width: 90vw;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.15);
+    }
+    #uploadInput {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon-container">
+    <div class="icon-button" id="cameraBtn" title="Open Camera">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 5h-3.586l-1.707-1.707A.996.996 0 0014 3H10a.996.996 0 00-.707.293L7.586 5H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2zm-8 12a5 5 0 110-10 5 5 0 010 10z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </div>
+    <div class="icon-button" id="voiceBtn" title="Voice Input">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 14a2 2 0 002-2V6a2 2 0 10-4 0v6a2 2 0 002 2z"/>
+        <path d="M19 11v1a7 7 0 01-14 0v-1H3v1a9 9 0 0018 0v-1z"/>
+        <path d="M12 19a4 4 0 004-4h-2a2 2 0 01-4 0H8a4 4 0 004 4z"/>
+      </svg>
+    </div>
+  </div>
+
+  <div id="cameraModal">
+    <div class="camera-container">
+      <div class="close-btn" id="closeModal">×</div>
+      <video id="video" autoplay playsinline></video>
+      <button class="capture-btn" id="captureBtn">Click</button>
+      <img id="capturedImage" alt="Captured Image" />
+      <div id="ocrStatus"></div>
+      <div id="extractedText" contenteditable="true" spellcheck="false"></div>
+      <button class="save-btn" id="saveOcrCamera" style="display:none;">Save as Document</button>
+    </div>
+  </div>
+
+  <div id="uploadContainer">
+    <input type="file" accept="image/*" id="uploadInput" />
+    <img id="uploadedImage" alt="Uploaded Image" />
+    <button class="convert-btn" id="convertBtn" style="display:none;">Convert to Digital Text</button>
+    <div id="ocrStatusUpload"></div>
+    <div id="extractedTextUpload" contenteditable="true" spellcheck="false"></div>
+    <button class="save-btn" id="saveOcrUpload" style="display:none;">Save as Document</button>
+  </div>
+
+  <div id="voiceContainer">
+    <div id="voiceStatus"></div>
+    <div id="voiceOutput" contenteditable="true" spellcheck="false"></div>
+  </div>
+
+  <!-- Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <script>
+    // Elements
+    const cameraBtn = document.getElementById('cameraBtn');
+    const cameraModal = document.getElementById('cameraModal');
+    const closeModal = document.getElementById('closeModal');
+    const video = document.getElementById('video');
+    const captureBtn = document.getElementById('captureBtn');
+    const capturedImage = document.getElementById('capturedImage');
+    const ocrStatus = document.getElementById('ocrStatus');
+    const extractedText = document.getElementById('extractedText');
+    const saveOcrCamera = document.getElementById('saveOcrCamera');
+    const uploadInput = document.getElementById('uploadInput');
+    const uploadedImage = document.getElementById('uploadedImage');
+    const convertBtn = document.getElementById('convertBtn');
+    const ocrStatusUpload = document.getElementById('ocrStatusUpload');
+    const extractedTextUpload = document.getElementById('extractedTextUpload');
+    const saveOcrUpload = document.getElementById('saveOcrUpload');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const voiceStatus = document.getElementById('voiceStatus');
+    const voiceOutput = document.getElementById('voiceOutput');
+
+    let stream = null;
+
+    // Document Creation Logic (Reusable)
+    function createDocument(data, filename = 'output.doc') {
+      let tableRows;
+      if (Array.isArray(data)) {
+        // For structured data (key-value pairs from voice)
+        tableRows = data.map(pair => `<tr><td style="padding:8px;">${pair[0]}</td><td style="padding:8px;">${pair[1]}</td></tr>`).join('');
+      } else {
+        // For plain text (e.g., OCR output)
+        tableRows = `<tr><td style="padding:8px;">Text</td><td style="padding:8px;">${data}</td></tr>`;
+      }
+      const tableHTML = `
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+          <tr style="background:#ccc;"><th style="padding:8px;">Parameter</th><th style="padding:8px;">Value</th></tr>
+          ${tableRows}
+        </table>
+      `;
+      const fullHTML = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head><meta charset='utf-8'></head>
+          <body>${tableHTML}</body>
+        </html>
+      `;
+      const blob = new Blob(['\ufeff', fullHTML], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Camera Functionality
+    cameraBtn.addEventListener('click', async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        cameraModal.classList.add('active');
+      } catch (err) {
+        ocrStatus.textContent = 'Error accessing camera: ' + err.message;
+      }
+    });
+
+    closeModal.addEventListener('click', () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      cameraModal.classList.remove('active');
+      capturedImage.style.display = 'none';
+      ocrStatus.textContent = '';
+      extractedText.textContent = '';
+      saveOcrCamera.style.display = 'none';
+    });
+
+    captureBtn.addEventListener('click', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      capturedImage.src = canvas.toDataURL('image/png');
+      capturedImage.style.display = 'block';
+      performOCR(capturedImage, ocrStatus, extractedText, saveOcrCamera);
+    });
+
+    // Upload Functionality
+    uploadInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          uploadedImage.src = reader.result;
+          uploadedImage.style.display = 'block';
+          convertBtn.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    convertBtn.addEventListener('click', () => {
+      performOCR(uploadedImage, ocrStatusUpload, extractedTextUpload, saveOcrUpload);
+    });
+
+    // OCR Processing
+    async function performOCR(imageElement, statusElement, textElement, saveButton) {
+      statusElement.textContent = 'Processing...';
+      try {
+        const { data: { text } } = await Tesseract.recognize(imageElement.src, 'eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              statusElement.textContent = `Processing... ${Math.round(m.progress * 100)}%`;
+            }
+          }
+        });
+        statusElement.textContent = 'Completed';
+        textElement.textContent = text;
+        saveButton.style.display = text ? 'block' : 'none';
+      } catch (err) {
+        statusElement.textContent = 'Error: ' + err.message;
+        textElement.textContent = '';
+        saveButton.style.display = 'none';
+      }
+    }
+
+    // Save OCR as Document
+    saveOcrCamera.addEventListener('click', () => {
+      createDocument(extractedText.textContent, 'ocr_camera.doc');
+      ocrStatus.textContent = 'Document downloaded';
+    });
+
+    saveOcrUpload.addEventListener('click', () => {
+      createDocument(extractedTextUpload.textContent, 'ocr_upload.doc');
+      ocrStatusUpload.textContent = 'Document downloaded';
+    });
+
+    // Voice Functionality
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      voiceBtn.style.display = 'none';
+      voiceStatus.textContent = 'Speech Recognition not supported. Use Chrome or Edge.';
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      voiceBtn.addEventListener('click', () => {
+        voiceStatus.textContent = 'Listening...';
+        voiceOutput.textContent = '';
+        try {
+          recognition.start();
+        } catch (err) {
+          voiceStatus.textContent = 'Error starting recognition: ' + err.message;
+        }
+      });
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        voiceStatus.textContent = 'Processing...';
+        voiceOutput.textContent = transcript;
+
+        const text = transcript.toLowerCase();
+        const parameters = [];
+
+        const connectors = ['is', 'equals', 'equal to', '=', 'becomes', 'stays at', 'live in', 'lives in', 'located in', 'remains'];
+        const connectorRegex = connectors.map(c => c.replace(/ /g, '\\s+')).join('|');
+        const pattern = new RegExp(`\\b([\\w\\s]+?)\\s+(?:${connectorRegex})\\s+([\\w\\d:\\s.%°-]+?)\\s*(?=(?:and|my|the|a|an|\\.|$))`, 'gi');
+
+        for (const match of text.matchAll(pattern)) {
+          let rawKey = cleanKey(match[1]);
+          let rawValue = cleanValue(match[2]);
+          if (rawKey && rawValue) {
+            parameters.push([capitalize(rawKey), rawValue]);
+          }
+        }
+
+        function cleanKey(str) {
+          return str.replace(/\b(?:and|my|the|a|an)\b/gi, '').replace(/^\s*and\s+/i, '').replace(/\s+/g, ' ').trim();
+        }
+
+        function cleanValue(str) {
+          return str.replace(/^(?:and|my|the|a|an)\s+/gi, '').replace(/\s+/g, ' ').trim();
+        }
+
+        function capitalize(str) {
+          return str.replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        if (parameters.length > 0) {
+          createDocument(parameters, 'voice_data.doc');
+          voiceStatus.textContent = 'Document downloaded';
+        } else {
+          voiceStatus.textContent = 'No structured data found';
+          voiceOutput.textContent = transcript + '\n\nTry saying: "temperature is 20" or "I live in Bijapur"';
+        }
+      };
+
+      recognition.onerror = (event) => {
+        voiceStatus.textContent = 'Error: ' + event.error;
+        voiceOutput.textContent = '';
+      };
+
+      recognition.onend = () => {
+        if (voiceStatus.textContent === 'Listening...') {
+          voiceStatus.textContent = 'Stopped';
+        }
+      };
+    }
+  </script>
+</body>
+</html>
