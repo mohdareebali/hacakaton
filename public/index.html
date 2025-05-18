@@ -213,8 +213,6 @@
       <button data-mode="doc" class="mode-btn active">.doc</button>
     </div>
 
-    
-
     <div class="controls">
       <i class="fas fa-images fa-xl" id="gallery-icon"></i>
       <i class="fas fa-microphone fa-xl" id="voice-icon"></i>
@@ -251,6 +249,52 @@
   const ocrStatus = document.getElementById('ocr-status');
   const ocrOutput = document.getElementById('ocr-output');
 
+  // Flash functionality
+  flashIcon.onclick = async () => {
+    if (!currentStream) return;
+    
+    try {
+      flashEnabled = !flashEnabled;
+      const videoTrack = currentStream.getVideoTracks()[0];
+      
+      // Check if torch is supported
+      if (videoTrack.getCapabilities().torch) {
+        await videoTrack.applyConstraints({
+          advanced: [{ torch: flashEnabled }]
+        });
+      }
+      
+      // Visual feedback
+      flashIcon.style.color = flashEnabled ? '#ff0' : '#ccc';
+      flashIcon.style.textDecoration = flashEnabled ? 'none' : 'line-through';
+      
+      // Visual flash effect (fallback)
+      if (flashEnabled) {
+        const flashDiv = document.createElement('div');
+        flashDiv.style.position = 'absolute';
+        flashDiv.style.top = '0';
+        flashDiv.style.left = '0';
+        flashDiv.style.width = '100%';
+        flashDiv.style.height = '100%';
+        flashDiv.style.backgroundColor = 'white';
+        flashDiv.style.opacity = '0.8';
+        flashDiv.style.zIndex = '10';
+        flashDiv.style.transition = 'opacity 300ms';
+        document.querySelector('.camera-preview').appendChild(flashDiv);
+        
+        setTimeout(() => {
+          flashDiv.style.opacity = '0';
+          setTimeout(() => flashDiv.remove(), 300);
+        }, 50);
+      }
+    } catch (err) {
+      console.error("Flash error:", err);
+      flashEnabled = !flashEnabled;
+      flashIcon.style.color = flashEnabled ? '#ff0' : '#ccc';
+      flashIcon.style.textDecoration = flashEnabled ? 'none' : 'line-through';
+    }
+  };
+
   openBtn.onclick = async () => {
     cameraUI.style.display = 'flex';
     try {
@@ -266,11 +310,6 @@
     }
   };
 
-  flashIcon.onclick = () => {
-    flashEnabled = !flashEnabled;
-    flashIcon.style.color = flashEnabled ? '#ff0' : '#ccc';
-  };
-
   async function setTorch(on) {
     if (!track) return;
     const capabilities = track.getCapabilities();
@@ -283,14 +322,14 @@
     }
   }
 
-  function createDocument(data, filename) {
+  function createDocument(data, filename, includeMetadata = false) {
     let content;
     if (Array.isArray(data)) {
       const tableRows = data
         .map(pair => `<tr><td style="padding:8px;">${pair[0]}</td><td style="padding:8px;">${pair[1]}</td></tr>`)
         .join('');
       content = `
-        <table border="1" style="border-collapse: collapse; width: 100%;">
+        <table border="1" style="border-collapse: collapse; width: 100%; margin-top: ${includeMetadata ? '80px' : '0'};">
           <tr style="background:#ccc;"><th style="padding:8px;">Parameter</th><th style="padding:8px;">Value</th></tr>
           ${tableRows}
         </table>
@@ -299,19 +338,27 @@
       content = `<p style="padding:8px;">${data.replace(/\n/g, '<br>')}</p>`;
     }
 
+    let metadataBlock = '';
+    if (includeMetadata) {
+      const author = "Operator A";
+      const timestamp = new Date().toLocaleString();
+      metadataBlock = `
+        <div style="position: absolute; top: 10px; right: 10px; font-size: 10pt; color: #666; text-align: right;">
+          <div><strong>Author:</strong> ${author}</div>
+          <div><strong>Time:</strong> ${timestamp}</div>
+          <div><strong>Location:</strong> Fetching...</div>
+        </div>
+      `;
+    }
+
     const fullHTML = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head><meta charset='utf-8'></head>
-        <body>${content}</body>
+        <body>${metadataBlock}${content}</body>
       </html>
     `;
     const blob = new Blob(['\ufeff', fullHTML], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    return { blob, metadataBlock, content };
   }
 
   async function performOCR(imageDataUrl) {
@@ -329,10 +376,12 @@
       ocrStatus.textContent = 'Completed';
       ocrOutput.textContent = text;
       saveIcon.style.display = text.trim() ? 'inline-block' : 'none';
+      return text;
     } catch (err) {
       ocrStatus.textContent = 'Error: ' + err.message;
       ocrOutput.textContent = '';
       saveIcon.style.display = 'none';
+      throw err;
     }
   }
 
@@ -346,9 +395,7 @@
     capturedImages.push(imageDataUrl);
     if (flashEnabled) setTimeout(() => setTorch(false), 300);
 
-    if (currentMode === 'doc') {
-      await performOCR(imageDataUrl);
-    } else if (currentMode === 'table') {
+    if (currentMode === 'table') {
       await performOCR(imageDataUrl);
       const text = ocrOutput.textContent;
       const lines = text.split('\n').filter(line => line.trim());
@@ -357,16 +404,77 @@
         return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
       }).filter(pair => pair);
       if (parameters.length > 0) {
-        createDocument(parameters, `captured_table.doc`);
-        ocrStatus.textContent = 'Table document downloaded';
+        navigator.geolocation.getCurrentPosition(pos => {
+          const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
+          const { blob, metadataBlock, content } = createDocument(parameters, `captured_table.doc`, true);
+          const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
+          const updatedHTML = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+              <head><meta charset='utf-8'></head>
+              <body>${updatedMetadataBlock}${content}</body>
+            </html>
+          `;
+          const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
+          const url = URL.createObjectURL(updatedBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `captured_table.doc`;
+          a.click();
+          URL.revokeObjectURL(url);
+          ocrStatus.textContent = 'Table document downloaded';
+        }, () => {
+          alert("Could not retrieve location. Please enable location access.");
+          const { blob } = createDocument(parameters, `captured_table.doc`, true);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `captured_table.doc`;
+          a.click();
+          URL.revokeObjectURL(url);
+          ocrStatus.textContent = 'Table document downloaded without location';
+        });
       } else {
         ocrStatus.textContent = 'No table data found';
       }
     } else {
-      const link = document.createElement('a');
-      link.href = imageDataUrl;
-      link.download = `captured_${currentMode}.png`;
-      link.click();
+      const text = await performOCR(imageDataUrl);
+      if (text.trim()) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
+          const { blob, metadataBlock, content } = createDocument(text, `captured_${currentMode}.doc`, true);
+          const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
+          const updatedHTML = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+              <head><meta charset='utf-8'></head>
+              <body>${updatedMetadataBlock}${content}</body>
+            </html>
+          `;
+          const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
+          const url = URL.createObjectURL(updatedBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `captured_${currentMode}.doc`;
+          a.click();
+          URL.revokeObjectURL(url);
+          ocrStatus.textContent = 'Document downloaded';
+        }, () => {
+          alert("Could not retrieve location. Please enable location access.");
+          const { blob } = createDocument(text, `captured_${currentMode}.doc`, true);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `captured_${currentMode}.doc`;
+          a.click();
+          URL.revokeObjectURL(url);
+          ocrStatus.textContent = 'Document downloaded without location';
+        });
+      }
+      if (currentMode === 'scan') {
+        const link = document.createElement('a');
+        link.href = imageDataUrl;
+        link.download = `captured_${currentMode}.png`;
+        link.click();
+      }
     }
   };
 
@@ -390,8 +498,8 @@
     const files = Array.from(fileInput.files);
     for (const file of files) {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const imageUrl = e.target.result;
+      reader.onload = async (event) => {
+        const imageUrl = event.target.result;
         capturedImages.push(imageUrl);
         if (currentMode === 'doc' || currentMode === 'table') {
           await performOCR(imageUrl);
@@ -494,12 +602,81 @@
         return str.replace(/\b\w/g, c => c.toUpperCase());
       }
 
+      function isAnomaly(param, value) {
+        const name = param.toLowerCase().replace(/\s+/g, '');
+        const safeZones = {
+          temperature: [2, 8],
+          phlevel: [6.5, 7.5],
+          humidity: [30, 70],
+          enginetemperature: [70, 110],
+          oilpressure: [20, 60],
+          tirepressure: [30, 35],
+          speed: [0, 180],
+          fridgetemp: [0, 5],
+          freezertemp: [-20, -10],
+          voltage: [110, 240],
+          current: [0, 10],
+          cargoweight: [0, 20000],
+          containertemp: [2, 8],
+        };
+        const valNum = parseFloat(value);
+        if (isNaN(valNum)) return false;
+        for (let key in safeZones) {
+          if (name.includes(key)) {
+            const [min, max] = safeZones[key];
+            return valNum < min || valNum > max;
+          }
+        }
+        return false;
+      }
+
       if (parameters.length > 0) {
-        createDocument(parameters, 'voice_data.doc');
-        ocrStatus.textContent = 'Document downloaded';
+        const safeParameters = [];
+        const alerts = [];
+
+        parameters.forEach(([param, value]) => {
+          if (isAnomaly(param, value)) {
+            alerts.push(`${param} = ${value} is OUT OF RANGE!`);
+          } else {
+            safeParameters.push([param, value]);
+          }
+        });
+
+        if (alerts.length > 0) {
+          alert("⚠ Danger Detected:\n" + alerts.join('\n'));
+        }
+
+        if (safeParameters.length > 0) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
+            const { blob, metadataBlock } = createDocument(safeParameters, 'voice_data.doc', true);
+            const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
+            const updatedHTML = `
+              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'></head>
+                <body>${updatedMetadataBlock}${blob.text.slice(blob.text.indexOf('<table'))}</body>
+              </html>
+            `;
+            const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
+            const url = URL.createObjectURL(updatedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voice_data.doc';
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Document downloaded';
+          }, () => {
+            alert("Could not retrieve location. Please enable location access.");
+            createDocument(safeParameters, 'voice_data.doc', true);
+            ocrStatus.textContent = 'Document downloaded without location';
+          });
+        } else {
+          ocrStatus.textContent = 'No safe parameters to export';
+          ocrOutput.textContent += '\n\nTry saying: "temperature is 20" or "humidity is 50"';
+        }
       } else {
         ocrStatus.textContent = 'No structured data found';
-        ocrOutput.textContent += '\n\nTry saying: "temperature is 20" or "I live in Bijapur"';
+        ocrOutput.textContent += '\n\nTry saying: "temperature is 20" or "humidity is 50"';
       }
     };
 
@@ -516,4 +693,4 @@
   }
 </script>
 </body>
-</html> 
+</html>
