@@ -74,9 +74,12 @@
     }
 
     .modes {
+      display: flex;
       justify-content: center;
       gap: 20px;
       padding: 15px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
     }
 
     .modes button {
@@ -88,6 +91,9 @@
       cursor: pointer;
       border-radius: 8px;
       transition: background 0.3s, color 0.3s;
+      width: 130px;
+      text-align: center;
+      flex-shrink: 0;
     }
 
     .modes button:hover {
@@ -98,15 +104,6 @@
       background-color: #1e90ff;
       color: #fff;
       font-weight: bold;
-    }
-
-    #mode-display {
-      text-align: center;
-      padding: 10px;
-      background-color: #111;
-      font-size: 13px;
-      border-top: 1px solid #222;
-      border-bottom: 1px solid #222;
     }
 
     .controls {
@@ -177,11 +174,14 @@
 
     @media (max-width: 768px) {
       .modes {
-        gap: 10px;
+        gap: 8px;
+        padding: 10px;
       }
       .modes button {
         font-size: 12px;
         padding: 8px 10px;
+        width: 120px;
+        flex-shrink: 0;
       }
       .controls {
         font-size: 1.2rem;
@@ -228,7 +228,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <script>
-  let currentMode = '.doc';
+  let currentMode = 'doc';
   let currentStream = null;
   let flashEnabled = false;
   let track = null;
@@ -240,7 +240,6 @@
   const canvas = document.getElementById('canvas');
   const captureBtn = document.getElementById('capture-btn');
   const modeBtns = document.querySelectorAll('.mode-btn');
-  const modeDisplay = document.getElementById('mode-display');
   const flashIcon = document.getElementById('flash-icon');
   const galleryIcon = document.getElementById('gallery-icon');
   const voiceIcon = document.getElementById('voice-icon');
@@ -257,18 +256,15 @@
       flashEnabled = !flashEnabled;
       const videoTrack = currentStream.getVideoTracks()[0];
       
-      // Check if torch is supported
       if (videoTrack.getCapabilities().torch) {
         await videoTrack.applyConstraints({
           advanced: [{ torch: flashEnabled }]
         });
       }
       
-      // Visual feedback
       flashIcon.style.color = flashEnabled ? '#ff0' : '#ccc';
       flashIcon.style.textDecoration = flashEnabled ? 'none' : 'line-through';
       
-      // Visual flash effect (fallback)
       if (flashEnabled) {
         const flashDiv = document.createElement('div');
         flashDiv.style.position = 'absolute';
@@ -386,95 +382,109 @@
   }
 
   captureBtn.onclick = async () => {
-    if (flashEnabled) await setTorch(true);
-    const context = canvas.getContext('2d');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageDataUrl = canvas.toDataURL('image/png');
-    capturedImages.push(imageDataUrl);
-    if (flashEnabled) setTimeout(() => setTorch(false), 300);
+    try {
+      if (!video.srcObject || !video.videoWidth || !video.videoHeight) {
+        ocrStatus.style.display = 'block';
+        ocrStatus.textContent = 'Error: Camera not ready';
+        return;
+      }
 
-    if (currentMode === 'table') {
-      await performOCR(imageDataUrl);
-      const text = ocrOutput.textContent;
-      const lines = text.split('\n').filter(line => line.trim());
-      const parameters = lines.map(line => {
-        const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
-        return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
-      }).filter(pair => pair);
-      if (parameters.length > 0) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
-          const { blob, metadataBlock, content } = createDocument(parameters, `captured_table.doc`, true);
-          const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
-          const updatedHTML = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-              <head><meta charset='utf-8'></head>
-              <body>${updatedMetadataBlock}${content}</body>
-            </html>
-          `;
-          const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
-          const url = URL.createObjectURL(updatedBlob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `captured_table.doc`;
-          a.click();
-          URL.revokeObjectURL(url);
-          ocrStatus.textContent = 'Table document downloaded';
-        }, () => {
-          alert("Could not retrieve location. Please enable location access.");
-          const { blob } = createDocument(parameters, `captured_table.doc`, true);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `captured_table.doc`;
-          a.click();
-          URL.revokeObjectURL(url);
-          ocrStatus.textContent = 'Table document downloaded without location';
-        });
+      if (flashEnabled) await setTorch(true);
+
+      const context = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageDataUrl = canvas.toDataURL('image/png');
+      capturedImages.push(imageDataUrl);
+
+      if (flashEnabled) setTimeout(() => setTorch(false), 300);
+
+      if (currentMode === 'table') {
+        const text = await performOCR(imageDataUrl);
+        const lines = text.split('\n').filter(line => line.trim());
+        const parameters = lines.map(line => {
+          const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
+          return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
+        }).filter(pair => pair);
+        
+        if (parameters.length > 0) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
+            const { blob, metadataBlock, content } = createDocument(parameters, `captured_table.doc`, true);
+            const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
+            const updatedHTML = `
+              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'></head>
+                <body>${updatedMetadataBlock}${content}</body>
+              </html>
+            `;
+            const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
+            const url = URL.createObjectURL(updatedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `captured_table.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Table document downloaded';
+          }, () => {
+            alert("Could not retrieve location. Please enable location access.");
+            const { blob } = createDocument(parameters, `captured_table.doc`, true);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `captured_table.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Table document downloaded without location';
+          });
+        } else {
+          ocrStatus.textContent = 'No table data found';
+        }
       } else {
-        ocrStatus.textContent = 'No table data found';
+        const text = await performOCR(imageDataUrl);
+        if (text.trim()) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
+            const { blob, metadataBlock, content } = createDocument(text, `captured_${currentMode}.doc`, true);
+            const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
+            const updatedHTML = `
+              <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'></head>
+                <body>${updatedMetadataBlock}${content}</body>
+              </html>
+            `;
+            const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
+            const url = URL.createObjectURL(updatedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `captured_${currentMode}.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Document downloaded';
+          }, () => {
+            alert("Could not retrieve location. Please enable location access.");
+            const { blob } = createDocument(text, `captured_${currentMode}.doc`, true);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `captured_${currentMode}.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Document downloaded without location';
+          });
+        }
+        if (currentMode === 'scan') {
+          const link = document.createElement('a');
+          link.href = imageDataUrl;
+          link.download = `captured_${currentMode}.png`;
+          link.click();
+        }
       }
-    } else {
-      const text = await performOCR(imageDataUrl);
-      if (text.trim()) {
-        navigator.geolocation.getCurrentPosition(pos => {
-          const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
-          const { blob, metadataBlock, content } = createDocument(text, `captured_${currentMode}.doc`, true);
-          const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
-          const updatedHTML = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-              <head><meta charset='utf-8'></head>
-              <body>${updatedMetadataBlock}${content}</body>
-            </html>
-          `;
-          const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
-          const url = URL.createObjectURL(updatedBlob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `captured_${currentMode}.doc`;
-          a.click();
-          URL.revokeObjectURL(url);
-          ocrStatus.textContent = 'Document downloaded';
-        }, () => {
-          alert("Could not retrieve location. Please enable location access.");
-          const { blob } = createDocument(text, `captured_${currentMode}.doc`, true);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `captured_${currentMode}.doc`;
-          a.click();
-          URL.revokeObjectURL(url);
-          ocrStatus.textContent = 'Document downloaded without location';
-        });
-      }
-      if (currentMode === 'scan') {
-        const link = document.createElement('a');
-        link.href = imageDataUrl;
-        link.download = `captured_${currentMode}.png`;
-        link.click();
-      }
+    } catch (error) {
+      console.error("Capture error:", error);
+      ocrStatus.style.display = 'block';
+      ocrStatus.textContent = 'Error capturing image: ' + error.message;
     }
   };
 
@@ -483,7 +493,6 @@
       modeBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
-      modeDisplay.textContent = `Current Mode: ${btn.textContent}`;
       ocrStatus.style.display = 'none';
       ocrOutput.style.display = 'none';
       saveIcon.style.display = 'none';
@@ -495,32 +504,66 @@
   };
 
   fileInput.onchange = async () => {
-    const files = Array.from(fileInput.files);
-    for (const file of files) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
         const imageUrl = event.target.result;
         capturedImages.push(imageUrl);
-        if (currentMode === 'doc' || currentMode === 'table') {
-          await performOCR(imageUrl);
-          if (currentMode === 'table') {
-            const text = ocrOutput.textContent;
-            const lines = text.split('\n').filter(line => line.trim());
-            const parameters = lines.map(line => {
-              const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
-              return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
-            }).filter(pair => pair);
-            if (parameters.length > 0) {
-              createDocument(parameters, `uploaded_table.doc`);
-              ocrStatus.textContent = 'Table document downloaded';
-            } else {
-              ocrStatus.textContent = 'No table data found';
-            }
+        
+        ocrStatus.style.display = 'block';
+        ocrOutput.style.display = 'block';
+        ocrStatus.textContent = 'Processing uploaded image...';
+        
+        if (currentMode === 'doc') {
+          const text = await performOCR(imageUrl);
+          if (text.trim()) {
+            const { blob } = createDocument(text, `uploaded_${currentMode}.doc`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `uploaded_${currentMode}.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Document downloaded';
+          }
+        } 
+        else if (currentMode === 'table') {
+          const text = await performOCR(imageUrl);
+          const lines = text.split('\n').filter(line => line.trim());
+          const parameters = lines.map(line => {
+            const parts = line.split(/\s{2,}|\t/).filter(part => part.trim());
+            return parts.length >= 2 ? [parts[0].trim(), parts.slice(1).join(' ').trim()] : null;
+          }).filter(pair => pair);
+          
+          if (parameters.length > 0) {
+            const { blob } = createDocument(parameters, `uploaded_${currentMode}.doc`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `uploaded_${currentMode}.doc`;
+            a.click();
+            URL.revokeObjectURL(url);
+            ocrStatus.textContent = 'Table document downloaded';
+          } else {
+            ocrStatus.textContent = 'No table data found';
           }
         }
-      };
-      reader.readAsDataURL(file);
-    }
+        else if (currentMode === 'scan') {
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = `uploaded_${currentMode}.png`;
+          link.click();
+          ocrStatus.textContent = 'Image downloaded';
+        }
+      } catch (error) {
+        console.error("Upload processing error:", error);
+        ocrStatus.textContent = 'Error processing image: ' + error.message;
+      }
+    };
+    reader.readAsDataURL(file);
     fileInput.value = "";
   };
 
