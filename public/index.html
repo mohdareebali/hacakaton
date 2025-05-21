@@ -692,12 +692,12 @@
         if (safeParameters.length > 0) {
           navigator.geolocation.getCurrentPosition(pos => {
             const location = `Lat: ${pos.coords.latitude.toFixed(4)}, Lon: ${pos.coords.longitude.toFixed(4)}`;
-            const { blob, metadataBlock } = createDocument(safeParameters, 'voice_data.doc', true);
+            const { blob, metadataBlock, content } = createDocument(safeParameters, 'voice_data.doc', true);
             const updatedMetadataBlock = metadataBlock.replace('Fetching...', location);
             const updatedHTML = `
               <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
                 <head><meta charset='utf-8'></head>
-                <body>${updatedMetadataBlock}${blob.text.slice(blob.text.indexOf('<table'))}</body>
+                <body>${updatedMetadataBlock}${content}</body>
               </html>
             `;
             const updatedBlob = new Blob(['\ufeff', updatedHTML], { type: 'application/msword' });
@@ -710,7 +710,13 @@
             ocrStatus.textContent = 'Document downloaded';
           }, () => {
             alert("Could not retrieve location. Please enable location access.");
-            createDocument(safeParameters, 'voice_data.doc', true);
+            const { blob } = createDocument(safeParameters, 'voice_data.doc', true);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voice_data.doc';
+            a.click();
+            URL.revokeObjectURL(url);
             ocrStatus.textContent = 'Document downloaded without location';
           });
         } else {
