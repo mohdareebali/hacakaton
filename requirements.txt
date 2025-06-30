@@ -3,3 +3,4 @@ react-dom
 react-scripts
 tesseract.js
 react-speech-recognition
+ngrok server
